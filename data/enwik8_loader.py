@@ -1,4 +1,5 @@
 from __future__ import print_function
+import torch
 import torch.utils.data as data
 from torch.autograd import Variable
 import os
@@ -69,6 +70,7 @@ class WIKIPEDIA(data.Dataset):
         end_tgt = st_tgt + self.bs[1]
         src = self.data[self.split][st_src:end_src]
         tgt = self.data[self.split][st_tgt:end_tgt]
+        src, tgt = torch.LongTensor(src), torch.LongTensor(tgt)
         return src, tgt
 
     def __len__(self):

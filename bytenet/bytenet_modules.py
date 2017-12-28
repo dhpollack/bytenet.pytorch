@@ -110,6 +110,15 @@ class BytenetEncoder(nn.Module):
         x = F.relu(x)
         return x
 
+class SimpleEmbEncoder(nn.Module):
+    def __init__(self, ne, ed):
+        super(SimpleEmbEncoder, self).__init__()
+        self.emb = nn.Embedding(num_embeddings=ne, embedding_dim=ed)
+    def forward(self, input):
+        x = self.emb(input)
+        x = x.transpose(1, 2)
+        return x
+
 class BytenetDecoder(nn.Module):
     """
         d = hidden units
@@ -137,4 +146,22 @@ class BytenetDecoder(nn.Module):
         x = F.relu(x)
         x = self.conv2(x)
         #x = F.softmax(x, dim=2)
+        x = x.transpose(1, 2).contiguous()
         return x
+
+    def generate(self, input, n_samples, encoder=None):
+        bs = input.size(0)
+        x = input
+        for i in range(n_samples):
+            out = self.forward(x)
+            if i+1 != n_samples:
+                gen = out.max(2)[1][:, -1].contiguous()
+                gen = gen.view(bs, 1)
+                gen_enc = encoder(gen)
+                x = torch.cat((x, gen_enc), dim=2)
+        # add last generated output to out
+        gen = out[:, -1, :].unsqueeze(1)
+        out = torch.cat((out, gen), dim=1)
+        # return only generated outputs
+        out = out[:,-n_samples:, :].contiguous()
+        return out
