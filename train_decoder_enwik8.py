@@ -42,6 +42,7 @@ for i, (mb, tgts) in enumerate(dl):
     mb, tgts = Variable(mb), Variable(tgts)
     mb = encoder(mb)
     #print(mb.size())
+    """generate seq in for loop is much slower for some reason
     for j in range(n_samples):
         out = decoder(mb)
         if j+1 != n_samples:
@@ -54,7 +55,11 @@ for i, (mb, tgts) in enumerate(dl):
     out = torch.cat((out, gen), dim=1)
     # return only generated outputs
     out = out[:,-n_samples:, :].contiguous()
-    #out = decoder.generate(mb, 400, encoder) # does not parallelize
+    """
+    if ngpu > 1:
+        out = decoder.module.generate(mb, 400, encoder) # does not parallelize
+    else:
+        out = decoder.generate(mb, 400, encoder)
     loss = criterion(out.view(-1, num_classes), tgts.view(-1))
     print("loss: {}".format(loss.data[0]))
     loss.backward()

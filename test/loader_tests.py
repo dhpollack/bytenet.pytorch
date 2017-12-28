@@ -2,7 +2,7 @@ import unittest
 import json
 import time
 from data.enwik8_loader import *
-from data.wmtnews_loader import *
+from data.wmt_loader import *
 
 class Loaders_Test(unittest.TestCase):
     config = json.load(open("config.json"))
