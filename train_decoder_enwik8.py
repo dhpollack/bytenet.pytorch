@@ -18,6 +18,7 @@ input_features = 50
 max_r = 16
 kernel_size = 3
 num_sets = 6
+n_samples = 400
 
 encoder = SimpleEmbEncoder(num_classes, input_features)
 decoder = BytenetDecoder(input_features//2, max_r, kernel_size, num_sets, num_classes)
@@ -30,7 +31,7 @@ criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.SGD([{"params": encoder.parameters()}, {"params": decoder.parameters()}], 0.001, 0.9)
 
 ds = WIKIPEDIA(config["HUTTER_DIR"])
-dl = data.DataLoader(ds, batch_size=100, shuffle=False, num_workers=8)
+dl = data.DataLoader(ds, batch_size=4, shuffle=False, num_workers=0)
 
 for i, (mb, tgts) in enumerate(dl):
     #print(mb.size(), tgts.size())
@@ -41,10 +42,19 @@ for i, (mb, tgts) in enumerate(dl):
     mb, tgts = Variable(mb), Variable(tgts)
     mb = encoder(mb)
     #print(mb.size())
-    if ngpu > 1:
-        out = decoder.module.generate(mb, 400, encoder)
-    else:
-        out = decoder.generate(mb, 400, encoder)
+    for j in range(n_samples):
+        out = decoder(mb)
+        if j+1 != n_samples:
+            gen = out.max(2)[1][:, -1].contiguous()
+            gen = gen.view(-1, 1)
+            gen_enc = encoder(gen)
+            mb = torch.cat((mb, gen_enc), dim=2)
+    # add last generated output to out
+    gen = out[:, -1, :].unsqueeze(1)
+    out = torch.cat((out, gen), dim=1)
+    # return only generated outputs
+    out = out[:,-n_samples:, :].contiguous()
+    #out = decoder.generate(mb, 400, encoder) # does not parallelize
     loss = criterion(out.view(-1, num_classes), tgts.view(-1))
     print("loss: {}".format(loss.data[0]))
     loss.backward()
