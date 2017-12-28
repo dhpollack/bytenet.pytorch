@@ -153,7 +153,7 @@ class BytenetDecoder(nn.Module):
         bs = input.size(0)
         x = input
         for i in range(n_samples):
-            out = self.forward(x)
+            out = self(x)
             if i+1 != n_samples:
                 gen = out.max(2)[1][:, -1].contiguous()
                 gen = gen.view(bs, 1)
