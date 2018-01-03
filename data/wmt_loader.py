@@ -140,10 +140,14 @@ class WMT(data.Dataset):
             if self.prepad:
                 data[k] = [self.pad_src_tgt(e, d, (uniq_en, uniq_de)) \
                            for e, d in zip(english, deutsch) \
-                           if len(e) != 0 and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
+                           if len(e) != 0 \
+                           and len(e) < 1000 and len(d) < 1000 \
+                           and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
             else:
                 data[k] = [(e, d) for e, d in zip(english, deutsch) \
-                           if len(e) != 0 and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
+                           if len(e) != 0 \
+                           and len(e) < 1000 and len(d) < 1000 \
+                           and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
             uniq[k] = (uniq_en, uniq_de)
             #print(len(english), len(english) - len(data[k]))
 
