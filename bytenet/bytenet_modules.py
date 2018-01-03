@@ -92,8 +92,6 @@ class BytenetEncoder(nn.Module):
         self.max_r = max_r
         self.k = k
         self.num_sets = num_sets
-        self.a = a
-        self.b = b
         self.pad_in = nn.ConstantPad1d((0, 1), 0.)
         self.conv_in = nn.Conv1d(1, 2*d, 1)
         self.sets = nn.Sequential()
@@ -104,9 +102,8 @@ class BytenetEncoder(nn.Module):
     def forward(self, input):
         x = input
         x_len = x.size(-1)
-        x = F.pad(x, (0, math.ceil(x_len*(self.a-1.) + self.b)), mode='constant', value=0)
         x = self.conv_in(x)
-        self.sets(x)
+        x = self.sets(x)
         x = self.conv_out(x)
         x = F.relu(x)
         return x

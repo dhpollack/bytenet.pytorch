@@ -37,8 +37,8 @@ class WMT(data.Dataset):
     UNK = "☺" # this will be used as the pad/spacer token
 
     def __init__(self, root, transform=None, target_transform=None,
-                 split="europarl", use_str=False, use_cache=False,
-                 a=1.2, b=0, prepad=True, download=False, keep_files=False):
+                 split="europarl", use_str=False, prepad=True,
+                 a=1.2, b=0, download=False, keep_files=False):
         self.root = root
         self.keep_files = keep_files
         self.split = split
@@ -75,10 +75,10 @@ class WMT(data.Dataset):
             if self.prepad:
                 data[k] = [self.pad_src_tgt(e, d, (uniq_en, uniq_de)) \
                            for e, d in zip(english, deutsch) \
-                           if (len(d) / len(e) <= a and len(d) / len(e) > 0.3)]
+                           if len(e) != 0 and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
             else:
                 data[k] = [(e, d) for e, d in zip(english, deutsch) \
-                           if (len(d) / len(e) <= a and len(d) / len(e) > 0.3)]
+                           if len(e) != 0 and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
             uniq[k] = (uniq_en, uniq_de)
             #print(len(english), len(english) - len(data[k]))
 
@@ -131,8 +131,8 @@ class WMT(data.Dataset):
         src, tgt = self.data[self.split][index]
         if not self.prepad:
             src, tgt = self.pad_src_tgt(src, tgt, self.labelers[self.split])
-        src = FloatTensor([src])
         if not self.use_str:
+            src = FloatTensor([src])
             tgt = LongTensor(tgt)
         return src, tgt
 
@@ -145,23 +145,25 @@ class WMT(data.Dataset):
     def pad_src_tgt(self, src, tgt, labelers):
         src_labeler, tgt_labeler = labelers
         if self.use_str:
+            # pad source
             src_pad = src + [src_labeler[self.END]]
             src_pad += [self.UNK] * int(len(src) * self.a + self.b)
+            # pad target
             tgt_pad = tgt + [tgt_labeler[self.END]]
             if len(src_pad) > len(tgt_pad):
                 tgt_pad += [self.UNK] * (len(src_pad) - len(tgt_pad))
         else:
+            # pad source
             src_pad = [src_labeler[c_src] for c_src in src]
             src_pad += [self.END]
-            src_pad += [len(src_labeler)] * int(len(src) * self.a + self.b)
+            src_pad += [len(src_labeler)-1] * int(len(src) * self.a + self.b)
+            # pad target
             tgt_pad = [tgt_labeler[c_tgt] for c_tgt in tgt]
             tgt_pad += [self.END]
             if len(src_pad) > len(tgt_pad):
-                tgt_pad += [len(tgt_labeler)] * (len(src_pad) - len(tgt_pad))
+                tgt_pad += [len(tgt_labeler)-1] * (len(src_pad) - len(tgt_pad))
 
         return src_pad, tgt_pad
-
-
 
     def _download_and_extract(self):
         raise NotImplementedError

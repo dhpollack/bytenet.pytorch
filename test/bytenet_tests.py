@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from bytenet.bytenet_modules import *
 
-class Test_ResBlock(unittest.TestCase):
+class Test_BytenetModules(unittest.TestCase):
     data = (torch.Tensor(1, 1000).uniform_() * 205).long()
     input_features = 50
 
