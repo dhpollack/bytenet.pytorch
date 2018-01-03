@@ -126,12 +126,13 @@ class BytenetDecoder(nn.Module):
         num_classes = number of output classes (Hunter prize default: 205)
     """
     def __init__(self, d=512, max_r=16, k=3, num_sets=6, num_classes=205,
-                 reduce_out=None):
+                 reduce_out=None, use_logsm=True):
         super(BytenetDecoder, self).__init__()
         self.max_r = max_r
         self.k = k
         self.d = d
         self.num_sets = num_sets
+        self.use_logsm = use_logsm # this is for NLLLoss
         self.sets = nn.Sequential()
         for i in range(num_sets):
             self.sets.add_module("set_{}".format(i+1), ResBlockSet(d, max_r, k, True))
@@ -144,6 +145,7 @@ class BytenetDecoder(nn.Module):
                     self.sets.add_module("reduce_{}".format(i+1), reduce_conv)
         self.conv1 = nn.Conv1d(2*d, 2*d, 1)
         self.conv2 = nn.Conv1d(2*d, num_classes, 1)
+        self.logsm = nn.LogSoftmax(dim=1)
 
     def forward(self, input):
         x = input
@@ -151,8 +153,10 @@ class BytenetDecoder(nn.Module):
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv2(x)
-        #x = F.softmax(x, dim=2)
-        x = x.transpose(1, 2).contiguous()
+        if self.use_logsm:
+            x = self.logsm(x)
+        else:
+            x = x.transpose(1, 2).contiguous()
         return x
 
     def generate(self, input, n_samples, encoder=None):

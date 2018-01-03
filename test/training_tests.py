@@ -32,7 +32,7 @@ class Test_Training(unittest.TestCase):
         decoder = BytenetDecoder(self.input_features // 2, 16, 3, 2, num_letters)
         params = [{"params": encoder.parameters()},
                   {"params": decoder.parameters()}]
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.NLLLoss()
         optimizer = torch.optim.Adam(params, lr=0.003)
         for src, tgt in dl:
             print(src.size(), tgt.size())
@@ -48,13 +48,15 @@ class Test_Training(unittest.TestCase):
             decoder.train()
             out = encoder(src)
             out = decoder(out)
-            loss = criterion(out.view(-1, num_letters), tgt.view(-1))
+            loss = criterion(out.unsqueeze(2), tgt.unsqueeze(1))
             print(loss.data[0])
             loss.backward()
             optimizer.step()
 
+        print(tgt.size())
+        print(out.size(), out.data.max(1)[1].size())
         print("".join([de_rlabeler[c] for c in tgt.data.view(-1)]))
-        print("".join([de_rlabeler[c] for c in out.data.view(-1, num_letters).max(1)[1]]))
+        print("".join([de_rlabeler[c] for c in out.data.max(1)[1].view(-1)]))
 
 if __name__ == '__main__':
     unittest.main()

@@ -1,5 +1,5 @@
 from __future__ import print_function
-from torch import LongTensor, FloatTensor
+from torch import LongTensor, FloatTensor, stack, cat
 import torch.utils.data as data
 from torch.autograd import Variable
 import os
@@ -7,6 +7,71 @@ import errno
 import math
 from collections import OrderedDict
 from utils import *
+
+def _pad_tensor(vec, pad, dim, val=0):
+    """
+    args:
+        vec - tensor to pad
+        pad - the size to pad to
+        dim - dimension to pad
+
+    return:
+        a new tensor padded to 'pad' in dimension 'dim'
+    """
+    if vec.size(dim) == pad:
+        return vec
+    else:
+        if dim < 0:
+            dim += vec.dim()
+        if dim == 0:
+            pad_vec = vec.new(pad - vec.size(dim), *vec.size()[1:]).fill_(val)
+        elif dim != -1 or dim != vec.dim()-1:
+            pad_vec = vec.new(*vec.size()[:dim], pad - vec.size(dim), *vec.size()[(dim+1):])
+        else:
+            pad_vec = vec.new(*vec.size()[:dim], pad - vec.size(dim))
+        return cat([vec, pad_vec], dim=dim)
+
+
+class PadCollate:
+    """
+    a variant of callate_fn that pads according to the longest sequence in
+    a batch of sequences
+    """
+
+    def __init__(self, dims=(-1, -1), pad_vals=(0.,0)):
+        """
+        args:
+            dim - the dimension to be padded (dimension of time in sequences)
+        """
+        self.dims = dims
+        self.pad_vals = pad_vals
+
+    def pad_collate(self, batch):
+        """
+        args:
+            batch - list of (tensor, label)
+
+        reutrn:
+            xs - a tensor of all examples in 'batch' after padding
+            ys - a LongTensor of all labels in batch
+        """
+        # find longest sequence
+        max_len_x = max([x[0].size(self.dims[0]) for x in batch])
+        max_len_y = max([x[1].size(self.dims[1]) for x in batch])
+        # pad according to max_len
+        for i, (x, y) in enumerate(batch):
+            if self.dims[0] is not None:
+                x = _pad_tensor(x, pad=max_len_x, dim=self.dims[0], val=self.pad_vals[0])
+            if len(self.dims) == 2:
+                y = _pad_tensor(y, pad=max_len_y, dim=self.dims[1], val=self.pad_vals[1])
+            batch[i] = (x, y)
+        # stack all
+        xs = stack([x[0] for x in batch], dim=0)
+        ys = stack([x[1] for x in batch], dim=0)
+        return xs, ys
+
+    def __call__(self, batch):
+        return self.pad_collate(batch)
 
 class WMT(data.Dataset):
     """`WMT News Commentary <http://www.statmt.org/wmt13/>`_ Dataset.
