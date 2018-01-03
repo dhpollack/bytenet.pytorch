@@ -1,0 +1,6 @@
+[submodule "ctcdecode"]
+	path = ctcdecode
+	url = https://github.com/parlance/ctcdecode.git
+[submodule "warp-ctc"]
+	path = warp-ctc
+	url = https://github.com/SeanNaren/warp-ctc.git

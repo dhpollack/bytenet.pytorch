@@ -25,14 +25,15 @@ class ResBlock(nn.Module):
         k (int): size of kernel in dilated convolution (odd numbers only)
         casual (bool): determines how to pad the casual conv layer. See notes.
     """
-    def __init__(self, d, r=1, k=3, casual=False):
+    def __init__(self, d, r=1, k=3, casual=False, use_bias=False):
         super(ResBlock, self).__init__()
         self.d = d # input features
         self.r = r # dilation size
         self.k = k # "masked kernel size"
+        ub = use_bias
         self.layernorm1 = nn.InstanceNorm1d(num_features=2*d, affine=True) # same as LayerNorm
         self.relu1 = nn.ReLU(inplace=True)
-        self.conv1x1_1 = nn.Conv1d(2*d, d, kernel_size=1) # output is "d"
+        self.conv1x1_1 = nn.Conv1d(2*d, d, kernel_size=1, bias=ub) # output is "d"
         self.layernorm2 = nn.InstanceNorm1d(num_features=d, affine=True)
         self.relu2 = nn.ReLU(inplace=True)
         if casual:
@@ -41,10 +42,10 @@ class ResBlock(nn.Module):
             padding = (_same_pad(k,r), 0)
         self.pad = nn.ConstantPad1d(padding, 0.)
         #self.pad = nn.ReflectionPad1d(padding) # this might be better for audio
-        self.maskedconv1xk = nn.Conv1d(d, d, kernel_size=k, dilation=r)
+        self.maskedconv1xk = nn.Conv1d(d, d, kernel_size=k, dilation=r, bias=ub)
         self.layernorm3 = nn.InstanceNorm1d(num_features=d, affine=True)
         self.relu3 = nn.ReLU(inplace=True)
-        self.conv1x1_2 = nn.Conv1d(d, 2*d, kernel_size=1) # output is "d"
+        self.conv1x1_2 = nn.Conv1d(d, 2*d, kernel_size=1, bias=ub) # output is "d"
 
     def forward(self, input):
         x = input
@@ -85,7 +86,7 @@ class BytenetEncoder(nn.Module):
         a = relative length of output sequence
         b = output sequence length intercept
     """
-    def __init__(self, d=512, max_r=16, k=3, num_sets=6, a=1.2000, b=0.):
+    def __init__(self, d=512, max_r=16, k=3, num_sets=6):
         super(BytenetEncoder, self).__init__()
         self.d = d
         self.max_r = max_r
@@ -127,7 +128,8 @@ class BytenetDecoder(nn.Module):
         num_sets = number of residual sets (paper default: 6. 5x6 = 30 ResBlocks)
         num_classes = number of output classes (Hunter prize default: 205)
     """
-    def __init__(self, d=512, max_r=16, k=3, num_sets=6, num_classes=205):
+    def __init__(self, d=512, max_r=16, k=3, num_sets=6, num_classes=205,
+                 reduce_out=None):
         super(BytenetDecoder, self).__init__()
         self.max_r = max_r
         self.k = k
@@ -136,12 +138,19 @@ class BytenetDecoder(nn.Module):
         self.sets = nn.Sequential()
         for i in range(num_sets):
             self.sets.add_module("set_{}".format(i+1), ResBlockSet(d, max_r, k, True))
+            if reduce_out is not None:
+                r = reduce_out[i]
+                if r != 0:
+                    reduce_conv = nn.Conv1d(2*d, 2*d, r, r)
+                    reduce_pad = nn.ConstantPad1d((0, r), 0.)
+                    self.sets.add_module("reduce_pad_{}".format(i+1), reduce_pad)
+                    self.sets.add_module("reduce_{}".format(i+1), reduce_conv)
         self.conv1 = nn.Conv1d(2*d, 2*d, 1)
         self.conv2 = nn.Conv1d(2*d, num_classes, 1)
 
     def forward(self, input):
         x = input
-        self.sets(x)
+        x = self.sets(x)
         x = self.conv1(x)
         x = F.relu(x)
         x = self.conv2(x)

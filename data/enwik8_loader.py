@@ -36,7 +36,7 @@ class WIKIPEDIA(data.Dataset):
 
         if download:
             _make_dir_iff(self.root)
-            self._download_and_extract()
+            _download_and_extract(root, "http://prize.hunter1.net")
         else:
             if not os.path.exists(enwik8_fp):
                 raise FileExistsError("{} does not exist, use download=True".format(enwik8_fp))
@@ -78,6 +78,3 @@ class WIKIPEDIA(data.Dataset):
 
     def set_split(self, s):
         self.split = s
-
-    def _download_and_extract(self):
-        raise NotImplementedError

@@ -5,6 +5,7 @@ from torch.autograd import Variable
 import torch.utils.data as data
 from data.wmt_loader import WMT
 from bytenet.bytenet_modules import BytenetEncoder, BytenetDecoder
+from bytenet.beam_opennmt import Beam
 import json
 
 use_cuda = torch.cuda.is_available()
@@ -17,13 +18,19 @@ ds = WMT(config["WMT_DIR"])
 dl = data.DataLoader(ds, batch_size=1, shuffle=False, num_workers=0)
 
 num_classes = len(ds.labelers["europarl"][1])
-input_features = 50
+input_features = 50 # 800 in paper
 max_r = 16
-kernel_size = 3
+k_enc = k_dec = 3
 num_sets = 6
 
-encoder = BytenetEncoder(input_features//2, max_r, kernel_size, num_sets)
-decoder = BytenetDecoder(input_features//2, max_r, kernel_size, num_sets, num_classes)
+beam_size = 12 # from paper
+pad = len(ds.labelers[ds.split][1])
+eos = 0
+n_best = 3
+
+encoder = BytenetEncoder(input_features//2, max_r, k_enc, num_sets)
+decoder = BytenetDecoder(input_features//2, max_r, k_dec, num_sets, num_classes)
+beam = Beam(12, pad, eos, n_best)
 
 if use_cuda:
     encoder = nn.DataParallel(encoder).cuda() if ngpu > 1 else encoder.cuda()

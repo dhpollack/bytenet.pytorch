@@ -22,4 +22,5 @@ def _make_dir_iff(d):
             raise
 
 def _download_extract(root, url, type="zip"):
+    print("use wget\nwget {}".format(url))
     raise NotImplementedError

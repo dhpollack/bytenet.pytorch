@@ -32,16 +32,22 @@ class Test_ResBlock(unittest.TestCase):
         mb_encoded = encoder(mb).transpose(1, 2)
 
         decoder = BytenetDecoder(self.input_features // 2, 16, 3, 6, 205)
-        print(decoder)
+        #print(decoder)
         out = decoder(mb_encoded)
         out = F.softmax(out, dim=1)
-
         print(out.size())
+
+        decoder_red = BytenetDecoder(self.input_features // 2, 16, 3, 4, 205, [0, 0, 4, 4])
+        #print(decoder_red)
+        out_red = decoder_red(mb_encoded)
+        out_red = F.softmax(out_red, dim=1)
+        print(out_red.size())
+
 
     def test_4_bytenet_encoder(self):
         mb = Variable(self.data.float()).unsqueeze(1)
         encoder = BytenetEncoder(self.input_features // 2, 16, 3, 6)
-        print(encoder)
+        #print(encoder)
         mb_encoded = encoder(mb)
         print(mb_encoded)
         #decoder = BytenetDecoder(self.input_features // 2, 16, 3, 6, 205)
