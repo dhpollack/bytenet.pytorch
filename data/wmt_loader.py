@@ -134,9 +134,9 @@ class WMT(data.Dataset):
                 uniq_de = OrderedDict([(k, i) for i, k in enumerate(uniq_de)])
                 uniq_de.update({self.UNK: len(uniq_de)})
                 deutsch = raw.split("\n")
-                #deutsch = [[c for c in l] for l in f.readlines()]
-                #uniq.update([c for l in deutsch for c in l])
+
             assert len(english) == len(deutsch)
+
             if self.prepad:
                 data[k] = [self.pad_src_tgt(e, d, (uniq_en, uniq_de)) \
                            for e, d in zip(english, deutsch) \
@@ -153,48 +153,6 @@ class WMT(data.Dataset):
 
         self.labelers = uniq
         self.data = data
-
-        """
-        if use_str:
-            data = {k: \
-                [(e + [uniq[k][0][self.END]] \
-                    + [self.UNK] * int(len(e)*self.a+self.b), \
-                  d + [uniq[k][1][self.END]]) for e, d in v] \
-                for k, v in data.items()
-            }
-            self.data = data
-        else:
-            encoded = {}
-            for k, v in data.items():
-                enc_split = []
-                for e, d in v:
-                    if len(e) > 0:
-                        eng_encoded = [self.labelers[k][0][c_e] for c_e in e]
-                        eng_encoded += [self.END]
-                        eng_encoded += [len(uniq[k][0])] * int(len(eng_encoded) * self.a + self.b)
-                        deu_encoded = [self.labelers[k][1][d_e] for d_e in d]
-                        deu_encoded += [self.END]
-                        enc_split.append((eng_encoded, deu_encoded))
-                    else:
-                        #print("blank found: ", e, d)
-                        pass
-                encoded[k] = enc_split
-            self.data = encoded
-        """
-
-        """old loader for news commentary stuff
-        self.labeler = {k: i for i, k in enumerate(sorted(list(uniq)))}
-        self.rlabeler = {v: k for k, v in self.labeler.items()}
-        encoded = {}
-        for k, v in data.items():
-            enc_split = []
-            for e, d in v:
-                eng_encoded = [self.labeler[c_e] for c_e in e]
-                deu_encoded = [self.labeler[d_e] for d_e in d]
-                enc_split.append((eng_encoded, deu_encoded))
-            encoded[k] = enc_split
-        self.data = encoded
-        """
 
     def __getitem__(self, index):
         src, tgt = self.data[self.split][index]
@@ -215,10 +173,10 @@ class WMT(data.Dataset):
         src_labeler, tgt_labeler = labelers
         if self.use_str:
             # pad source
-            src_pad = src + [src_labeler[self.END]]
+            src_pad = src + [list(src_labeler)[self.END]]
             src_pad += [self.UNK] * int(len(src) * self.a + self.b)
             # pad target
-            tgt_pad = tgt + [tgt_labeler[self.END]]
+            tgt_pad = tgt + [list(tgt_labeler)[self.END]]
             if len(src_pad) > len(tgt_pad):
                 tgt_pad += [self.UNK] * (len(src_pad) - len(tgt_pad))
         else:

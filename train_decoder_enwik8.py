@@ -14,7 +14,7 @@ print("Use CUDA on {} devices: {}".format(ngpu, use_cuda))
 config = json.load(open("config.json"))
 
 num_classes = 205
-input_features = 50
+input_features = 100 # 512 paper uses
 max_r = 16
 kernel_size = 3
 num_sets = 6
@@ -25,10 +25,10 @@ decoder = BytenetDecoder(input_features//2, max_r, kernel_size, num_sets, num_cl
 if use_cuda:
     encoder = nn.DataParallel(encoder).cuda() if ngpu > 1 else encoder.cuda()
     decoder = nn.DataParallel(decoder).cuda() if ngpu > 1 else decoder.cuda()
-#print(decoder)
+params = [{"params": encoder.parameters()}, {"params": decoder.parameters()}]
 
 criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD([{"params": encoder.parameters()}, {"params": decoder.parameters()}], 0.001, 0.9)
+optimizer = torch.optim.Adam(params, 0.0003, weight_decay=0.0001)
 
 ds = WIKIPEDIA(config["HUTTER_DIR"])
 dl = data.DataLoader(ds, batch_size=4, shuffle=False, num_workers=0)

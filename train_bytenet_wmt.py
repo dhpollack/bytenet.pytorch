@@ -11,7 +11,7 @@ import json
 
 parser = argparse.ArgumentParser(description='PyTorch Bytenet WMT Trainer')
 parser.add_argument('--lr', type=float, default=0.0003,
-                    help='initial learning rate')
+                    help='learning rate')
 parser.add_argument('--epochs', type=int, default=20,
                     help='upper epoch limit')
 parser.add_argument('--batch-size', type=int, default=20,
@@ -99,6 +99,10 @@ for epoch in range(epochs):
         mb = encoder(mb)
         out = decoder(mb)
         loss = criterion(out.unsqueeze(2), tgts.unsqueeze(1)) # ach, alles für Bilder
-        print("loss: {}".format(loss.data[0]))
+        if i % args.log_interval == 0:
+            print("loss: {} on epoch {}-{}".format(loss.data[0], epoch+1, i+1))
         loss.backward()
         optimizer.step()
+    mstate = (encoder.state_dict(), decoder.state_dict())
+    sname = "output/states/{}_{}.pt".format(args.model_name, epoch+1)
+    torch.save(mstate, sname)

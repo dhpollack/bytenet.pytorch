@@ -98,3 +98,6 @@ ENV/
 # pytorch
 .pt
 .pth
+
+# project specfic
+output/

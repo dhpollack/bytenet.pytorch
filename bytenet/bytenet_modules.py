@@ -37,15 +37,15 @@ class ResBlock(nn.Module):
         self.layernorm2 = nn.InstanceNorm1d(num_features=d, affine=True)
         self.relu2 = nn.ReLU(inplace=True)
         if casual:
-            padding = (_same_pad(k,r) // 2, _same_pad(k,r) // 2)
-        else:
             padding = (_same_pad(k,r), 0)
+        else:
+            padding = (_same_pad(k,r) // 2, _same_pad(k,r) // 2)
         self.pad = nn.ConstantPad1d(padding, 0.)
         #self.pad = nn.ReflectionPad1d(padding) # this might be better for audio
         self.maskedconv1xk = nn.Conv1d(d, d, kernel_size=k, dilation=r, bias=ub)
         self.layernorm3 = nn.InstanceNorm1d(num_features=d, affine=True)
         self.relu3 = nn.ReLU(inplace=True)
-        self.conv1x1_2 = nn.Conv1d(d, 2*d, kernel_size=1, bias=ub) # output is "d"
+        self.conv1x1_2 = nn.Conv1d(d, 2*d, kernel_size=1, bias=ub) # output is "2*d"
 
     def forward(self, input):
         x = input
@@ -64,6 +64,11 @@ class ResBlock(nn.Module):
         return x
 
 class ResBlockSet(nn.Module):
+    """
+        The Bytenet encoder and decoder are made up of sets of residual blocks
+        with dilations of increasing size.  These sets are then stacked upon each
+        other to create the full network.
+    """
     def __init__(self, d, max_r=16, k=3, casual=False):
         super(ResBlockSet, self).__init__()
         self.d = d
@@ -86,7 +91,7 @@ class BytenetEncoder(nn.Module):
         a = relative length of output sequence
         b = output sequence length intercept
     """
-    def __init__(self, d=512, max_r=16, k=3, num_sets=6):
+    def __init__(self, d=800, max_r=16, k=3, num_sets=6):
         super(BytenetEncoder, self).__init__()
         self.d = d
         self.max_r = max_r
@@ -109,6 +114,11 @@ class BytenetEncoder(nn.Module):
         return x
 
 class SimpleEmbEncoder(nn.Module):
+    """
+        The decoder only training does not specify how to turn an integer input
+        into a 2*d dimensional vector that the decoder network expects, so I
+        decided to use a simple embedding network.
+    """
     def __init__(self, ne, ed):
         super(SimpleEmbEncoder, self).__init__()
         self.emb = nn.Embedding(num_embeddings=ne, embedding_dim=ed)
