@@ -20,8 +20,10 @@ kernel_size = 3
 num_sets = 6
 n_samples = 400
 
+epochs = 10
+
 encoder = SimpleEmbEncoder(num_classes, input_features)
-decoder = BytenetDecoder(input_features//2, max_r, kernel_size, num_sets, num_classes)
+decoder = BytenetDecoder(input_features//2, max_r, kernel_size, num_sets, num_classes, use_logsm=False)
 if use_cuda:
     encoder = nn.DataParallel(encoder).cuda() if ngpu > 1 else encoder.cuda()
     decoder = nn.DataParallel(decoder).cuda() if ngpu > 1 else decoder.cuda()
@@ -33,34 +35,25 @@ optimizer = torch.optim.Adam(params, 0.0003, weight_decay=0.0001)
 ds = WIKIPEDIA(config["HUTTER_DIR"])
 dl = data.DataLoader(ds, batch_size=4, shuffle=False, num_workers=0)
 
-for i, (mb, tgts) in enumerate(dl):
-    #print(mb.size(), tgts.size())
-    encoder.zero_grad()
-    decoder.zero_grad()
-    if use_cuda:
-        mb, tgts = mb.cuda(), tgts.cuda()
-    mb, tgts = Variable(mb), Variable(tgts)
-    mb = encoder(mb)
-    #print(mb.size())
-    """generate seq in for loop is much slower for some reason
-    for j in range(n_samples):
-        out = decoder(mb)
-        if j+1 != n_samples:
-            gen = out.max(2)[1][:, -1].contiguous()
-            gen = gen.view(-1, 1)
-            gen_enc = encoder(gen)
-            mb = torch.cat((mb, gen_enc), dim=2)
-    # add last generated output to out
-    gen = out[:, -1, :].unsqueeze(1)
-    out = torch.cat((out, gen), dim=1)
-    # return only generated outputs
-    out = out[:,-n_samples:, :].contiguous()
-    """
-    if ngpu > 1:
-        out = decoder.module.generate(mb, 400, encoder) # does not parallelize
-    else:
-        out = decoder.generate(mb, 400, encoder)
-    loss = criterion(out.view(-1, num_classes), tgts.view(-1))
-    print("loss: {}".format(loss.data[0]))
-    loss.backward()
-    optimizer.step()
+for epoch in range(epochs):
+    print("Epoch {}".format(epoch+1))
+    for i, (mb, tgts) in enumerate(dl):
+        #print(mb.size(), tgts.size())
+        encoder.zero_grad()
+        decoder.zero_grad()
+        if use_cuda:
+            mb, tgts = mb.cuda(), tgts.cuda()
+        mb, tgts = Variable(mb), Variable(tgts)
+        mb = encoder(mb)
+        #print(mb.size())
+        if ngpu > 1:
+            out = decoder.module.generate(mb, n_samples, encoder) # does not parallelize
+        else:
+            out = decoder.generate(mb, n_samples, encoder)
+        loss = criterion(out.view(-1, num_classes), tgts.view(-1))
+        print("loss: {} on e{}-b{}".format(loss.data[0], epoch+1, i+1))
+        loss.backward()
+        optimizer.step()
+    mstate = (encoder.state_dict(), decoder.state_dict())
+    sname = "output/states/{}_{}.pt".format("bytenet_decoder_enwik8", epoch+1)
+    torch.save(mstate, sname)

@@ -21,14 +21,9 @@ def _pad_tensor(vec, pad, dim, val=0):
     if vec.size(dim) == pad:
         return vec
     else:
-        if dim < 0:
-            dim += vec.dim()
-        if dim == 0:
-            pad_vec = vec.new(pad - vec.size(dim), *vec.size()[1:]).fill_(val)
-        elif dim != -1 or dim != vec.dim()-1:
-            pad_vec = vec.new(*vec.size()[:dim], pad - vec.size(dim), *vec.size()[(dim+1):])
-        else:
-            pad_vec = vec.new(*vec.size()[:dim], pad - vec.size(dim))
+        pad_size = list(vec.size())
+        pad_size[dim] = pad - vec.size(dim)
+        pad_vec = vec.new(*pad_size).fill_(val)
         return cat([vec, pad_vec], dim=dim)
 
 
