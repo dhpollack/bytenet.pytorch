@@ -80,6 +80,11 @@ if use_cuda:
     encoder = nn.DataParallel(encoder).cuda() if ngpu > 1 else encoder.cuda()
     decoder = nn.DataParallel(decoder).cuda() if ngpu > 1 else decoder.cuda()
 
+if args.load_model is not None:
+    enstate, destate = torch.load(args.load_model, map_location=lambda storage, loc: storage)
+    encoder.load_state_dict(enstate)
+    decoder.load_state_dict(destate)
+
 params = [{"params": encoder.parameters()}, {"params": decoder.parameters()}]
 #print(decoder)
 
