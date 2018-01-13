@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.utils.data as data
-from data.wmt_loader import WMT
+from data.iwslt_loader import IWSLT
 from data.loader_utils import PadCollate
 from bytenet.bytenet_modules import BytenetEncoder, BytenetDecoder
 from bytenet.beam_opennmt import Beam
@@ -33,7 +33,7 @@ parser.add_argument('--log-interval', type=int, default=5,
                     help='reports per epoch')
 parser.add_argument('--chkpt-interval', type=int, default=10,
                     help='how often to save checkpoints')
-parser.add_argument('--model-name', type=str, default="bytenet_wmt",
+parser.add_argument('--model-name', type=str, default="bytenet_taboeta",
                     help='model name')
 parser.add_argument('--load-model', type=str, default=None,
                     help='path of model to load')
@@ -50,7 +50,7 @@ print("Use CUDA on {} devices: {}".format(ngpu, use_cuda))
 
 config = json.load(open("config.json"))
 
-ds = WMT(config["WMT_DIR"])
+ds = TABOETA(config["TABOETA_DIR"])
 de_labeler = ds.labelers[ds.split][1]
 de_rlabeler = list(de_labeler)
 
@@ -83,13 +83,13 @@ if use_cuda:
     encoder = nn.DataParallel(encoder).cuda() if ngpu > 1 else encoder.cuda()
     decoder = nn.DataParallel(decoder).cuda() if ngpu > 1 else decoder.cuda()
 
-if args.use_half_precision:
-    encoder, decoder = encoder.half(), decoder.half()
-
 if args.load_model is not None:
     enstate, destate = torch.load(args.load_model, map_location=lambda storage, loc: storage)
     encoder.load_state_dict(enstate)
     decoder.load_state_dict(destate)
+
+if args.use_half_precision:
+    encoder, decoder = encoder.half(), decoder.half()
 
 params = [{"params": encoder.parameters()}, {"params": decoder.parameters()}]
 #print(decoder)
@@ -97,6 +97,8 @@ params = [{"params": encoder.parameters()}, {"params": decoder.parameters()}]
 criterion = nn.NLLLoss(ignore_index=ignore_idx)
 eps = 1e-4 if args.use_half_precision else 1e-8
 optimizer = torch.optim.Adam(params, lr, eps=eps)
+
+print("Number of Batches: {}".format(len(dl)))
 
 for epoch in range(epochs):
     print("Epoch {}".format(epoch+1))

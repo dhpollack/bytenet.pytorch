@@ -8,14 +8,8 @@ import math
 from collections import OrderedDict
 from utils import *
 
-class WMT(data.Dataset):
-    """`WMT News Commentary <http://www.statmt.org/wmt13/>`_ Dataset.
-
-    This loads the WMT europarl-v7.de-en dataset for english-german translation.
-
-    Notes:  In the English set, I found 309 (308 + unknown char) different chars,
-        but the paper has only 296.  In the German set, I correctly have 323 chars,
-        as used in the paper.
+class TABOETA(data.Dataset):
+    """`Taboeta <http://tatoeba.org/eng/downloads>`_ Dataset.
 
     Args:
         TODO: update documentation
@@ -25,19 +19,16 @@ class WMT(data.Dataset):
     """
 
     SPLITS = {
-        "europarl": ("europarl-v7.de-en.en", "europarl-v7.de-en.de"),
-        #"2013_news": ("news-commentary-v8.de-en.en", "news-commentary-v8.de-en.de"),
-        #"2014_news": ("news-commentary-v9.de-en.en", "news-commentary-v9.de-en.de"),
-        #"2015_news": ("news-commentary-v10.de-en.en", "news-commentary-v10.de-en.de"),
+        "en-de": ("deu.txt"),
     }
 
-    REPLACE = [("\t", " "), ("—", "–"), ("―", "–"), ("−", "–"), (u'\u200b', ""), (u'\xa0', " ")]
+    REPLACE = [("—", "–"), ("―", "–"), ("−", "–"), (u'\u200b', ""), (u'\xa0', " ")]
 
     END = 0 # this is the "\n" character which gets removed with the split op
     UNK = "☺" # this will be used as the pad/spacer token
 
     def __init__(self, root, transform=None, target_transform=None,
-                 split="europarl", use_str=False, prepad=True,
+                 split="en-de", use_str=False, prepad=True,
                  a=1.2, b=0, download=False, keep_files=False):
         self.root = root
         self.keep_files = keep_files
@@ -53,38 +44,35 @@ class WMT(data.Dataset):
         uniq = {}
         for k, v in self.SPLITS.items():
             split_dir = os.path.join(root, k)
-            with open(os.path.join(split_dir, v[0]), "r") as f:
+            with open(os.path.join(split_dir, v), "r") as f:
                 raw = f.read()
                 for s, r in self.REPLACE:
                     raw = raw.replace(s, r)
-                uniq_en = sorted(list(set(raw)))
-                uniq_en = OrderedDict([(k, i) for i, k in enumerate(uniq_en)])
-                uniq_en.update({self.UNK: len(uniq_en)})
-                english = raw.split("\n")
-            with open(os.path.join(split_dir, v[1]), "r") as f:
-                raw = f.read()
-                for s, r in self.REPLACE:
-                    raw = raw.replace(s, r)
-                uniq_de = sorted(list(set(raw)))
-                uniq_de = OrderedDict([(k, i) for i, k in enumerate(uniq_de)])
-                uniq_de.update({self.UNK: len(uniq_de)})
-                deutsch = raw.split("\n")
+                pairs = [l for l in raw.split("\n") if l.count("\t") > 0]
+                pairs = [p.split("\t") for p in pairs]
+                p1_sentences, p2_sentences = zip(*pairs)
+                uniq_p1 = sorted(list(set(''.join(p1_sentences))))
+                uniq_p1 = ["\n"] + uniq_p1
+                uniq_p1 = OrderedDict([(k, i) for i, k in enumerate(uniq_p1)])
+                uniq_p1.update({self.UNK: len(uniq_p1)})
+                uniq_p2 = sorted(list(set(''.join(p2_sentences))))
+                uniq_p2 = ["\n"] + uniq_p2
+                uniq_p2 = OrderedDict([(k, i) for i, k in enumerate(uniq_p2)])
+                uniq_p2.update({self.UNK: len(uniq_p2)})
 
-            assert len(english) == len(deutsch)
+            assert len(p1_sentences) == len(p2_sentences)
+
 
             if self.prepad:
-                data[k] = [self.pad_src_tgt(e, d, (uniq_en, uniq_de)) \
-                           for e, d in zip(english, deutsch) \
-                           if len(e) != 0 \
-                           and len(e) < 1000 and len(d) < 1000 \
-                           and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
+                data[k] = [self.pad_src_tgt(p1, p2, (uniq_p1, uniq_p2)) \
+                           for p1, p2 in zip(p1_sentences, p2_sentences) \
+                           if len(p1) < 1000 and len(p2) < 1000 \
+                           and (len(p2) / len(p1) <= a*.98 and len(p2) / len(p1) > 0.3)]
             else:
-                data[k] = [(e, d) for e, d in zip(english, deutsch) \
-                           if len(e) != 0 \
-                           and len(e) < 1000 and len(d) < 1000 \
-                           and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
-            uniq[k] = (uniq_en, uniq_de)
-            #print(len(english), len(english) - len(data[k]))
+                data[k] = [(p1, p2) for p1, p2 in zip(p1_sentences, p2_sentences) \
+                           if len(p1) < 1000 and len(p2) < 1000 \
+                           and (len(p2) / len(p1) <= a*.98 and len(p2) / len(p1) > 0.3)]
+            uniq[k] = (uniq_p1, uniq_p2)
 
         self.labelers = uniq
         self.data = data

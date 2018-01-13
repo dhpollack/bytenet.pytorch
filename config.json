@@ -1,5 +1,6 @@
 {
   "HUTTER_DIR": "/home/david/Programming/data/Wikipedia",
   "IWSLT_DIR": "/home/david/Programming/data/IWSLT",
+  "TABOETA_DIR": "/home/david/Programming/data/taboeta",
   "WMT_DIR": "/home/david/Programming/data/WMT"
 }

@@ -4,7 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.utils.data as data
-from data.iwslt_loader import IWSLT, PadCollate
+from data.iwslt_loader import IWSLT
+from data.loader_utils import PadCollate
 from bytenet.bytenet_modules import BytenetEncoder, BytenetDecoder
 from bytenet.beam_opennmt import Beam
 import json
@@ -38,6 +39,8 @@ parser.add_argument('--load-model', type=str, default=None,
                     help='path of model to load')
 parser.add_argument('--save-model', action='store_true',
                     help='path to save the final model')
+parser.add_argument('--use-half-precision', action='store_true',
+                    help='do all calculations in half precision')
 args = parser.parse_args()
 
 
@@ -85,11 +88,15 @@ if args.load_model is not None:
     encoder.load_state_dict(enstate)
     decoder.load_state_dict(destate)
 
+if args.use_half_precision:
+    encoder, decoder = encoder.half(), decoder.half()
+
 params = [{"params": encoder.parameters()}, {"params": decoder.parameters()}]
 #print(decoder)
 
 criterion = nn.NLLLoss(ignore_index=ignore_idx)
-optimizer = torch.optim.Adam(params, lr)
+eps = 1e-4 if args.use_half_precision else 1e-8
+optimizer = torch.optim.Adam(params, lr, eps=eps)
 
 print("Number of Batches: {}".format(len(dl)))
 
@@ -102,6 +109,8 @@ for epoch in range(epochs):
         decoder.train()
         if use_cuda:
             mb, tgts = mb.cuda(), tgts.cuda()
+        if args.use_half_precision:
+            mb = mb.half()
         mb, tgts = Variable(mb), Variable(tgts)
         mb = encoder(mb)
         out = decoder(mb)
