@@ -1,4 +1,4 @@
-from torch import stack, cat
+from torch import LongTensor, stack, cat
 
 
 def _pad_tensor(vec, pad, dim, val=0):
@@ -60,3 +60,9 @@ class PadCollate:
 
     def __call__(self, batch):
         return self.pad_collate(batch)
+
+def decode_one_sample(out, rlabeler):
+    out_cpu = out.cpu()
+    rlabels = out_cpu.data.max(1)[1].index_select(0, LongTensor([0]))
+    rlabels.squeeze_()
+    return ''.join([rlabeler[rl] for rl in rlabels])

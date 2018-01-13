@@ -4,10 +4,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 import torch.utils.data as data
-from data.iwslt_loader import IWSLT
-from data.loader_utils import PadCollate
+from data import select_dataset
+from data.loader_utils import PadCollate, decode_one_sample
 from bytenet.bytenet_modules import BytenetEncoder, BytenetDecoder
-from bytenet.beam_opennmt import Beam
+#from bytenet.beam_opennmt import Beam
 import json
 
 parser = argparse.ArgumentParser(description='PyTorch Bytenet WMT Trainer')
@@ -33,7 +33,7 @@ parser.add_argument('--log-interval', type=int, default=5,
                     help='reports per epoch')
 parser.add_argument('--chkpt-interval', type=int, default=10,
                     help='how often to save checkpoints')
-parser.add_argument('--model-name', type=str, default="bytenet_taboeta",
+parser.add_argument('--model-name', type=str, default="bytenet_wmt",
                     help='model name')
 parser.add_argument('--load-model', type=str, default=None,
                     help='path of model to load')
@@ -50,17 +50,18 @@ print("Use CUDA on {} devices: {}".format(ngpu, use_cuda))
 
 config = json.load(open("config.json"))
 
-ds = TABOETA(config["TABOETA_DIR"])
-de_labeler = ds.labelers[ds.split][1]
-de_rlabeler = list(de_labeler)
+ds = select_dataset(args.model_name, config)
+tgt_labeler = ds.labelers[ds.split][1]
+tgt_rlabeler = list(tgt_labeler)
 
 ignore_idx = -100
-pad_vals = (len(de_labeler)-1, ignore_idx)
+pad_vals = (len(tgt_labeler)-1, ignore_idx)
 dl = data.DataLoader(ds, batch_size=args.batch_size, shuffle=False,
                      drop_last=True, num_workers=args.num_workers,
                      collate_fn=PadCollate(pad_vals=pad_vals))
+print("Number of Batches: {}".format(len(dl)))
 
-num_classes = len(de_labeler)
+num_classes = len(tgt_labeler)
 input_features = args.d # 800 in paper
 max_r = args.max_r
 k_enc = k_dec = args.k
@@ -70,35 +71,34 @@ lr = args.lr # from paper
 
 epochs = args.epochs
 
-beam_size = 12 # from paper
-pad = len(ds.labelers[ds.split][1])
-eos = 0
-n_best = 3
+# TODO: Implement a Beam Search
+#beam_size = 12 # from paper
+#pad = len(ds.labelers[ds.split][1])
+#eos = 0
+#n_best = 3
 
 encoder = BytenetEncoder(input_features//2, max_r, k_enc, num_sets)
 decoder = BytenetDecoder(input_features//2, max_r, k_dec, num_sets, num_classes)
-beam = Beam(12, pad, eos, n_best)
+#beam = Beam(12, pad, eos, n_best)
 
 if use_cuda:
     encoder = nn.DataParallel(encoder).cuda() if ngpu > 1 else encoder.cuda()
     decoder = nn.DataParallel(decoder).cuda() if ngpu > 1 else decoder.cuda()
+
+if args.use_half_precision:
+    encoder, decoder = encoder.half(), decoder.half()
 
 if args.load_model is not None:
     enstate, destate = torch.load(args.load_model, map_location=lambda storage, loc: storage)
     encoder.load_state_dict(enstate)
     decoder.load_state_dict(destate)
 
-if args.use_half_precision:
-    encoder, decoder = encoder.half(), decoder.half()
-
 params = [{"params": encoder.parameters()}, {"params": decoder.parameters()}]
 #print(decoder)
 
 criterion = nn.NLLLoss(ignore_index=ignore_idx)
-eps = 1e-4 if args.use_half_precision else 1e-8
+eps = 1e-6 if args.use_half_precision else 1e-8
 optimizer = torch.optim.Adam(params, lr, eps=eps)
-
-print("Number of Batches: {}".format(len(dl)))
 
 for epoch in range(epochs):
     print("Epoch {}".format(epoch+1))
@@ -116,7 +116,8 @@ for epoch in range(epochs):
         out = decoder(mb)
         loss = criterion(out.unsqueeze(2), tgts.unsqueeze(1)) # ach, alles für Bilder
         if i % args.log_interval == 0:
-            print("loss: {} on epoch {}-{}".format(loss.data[0], epoch+1, i+1))
+            sample = decode_one_sample(out, tgt_rlabeler)
+            print("loss: {} on epoch {}-{};{}".format(loss.data[0], epoch+1, i+1, sample))
         loss.backward()
         optimizer.step()
     mstate = (encoder.state_dict(), decoder.state_dict())
