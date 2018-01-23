@@ -96,7 +96,7 @@ if args.load_model is not None:
 params = [{"params": encoder.parameters()}, {"params": decoder.parameters()}]
 #print(decoder)
 
-criterion = nn.NLLLoss(ignore_index=ignore_idx)
+criterion = nn.NLLLoss(ignore_index=ignore_idx, size_average=False)
 eps = 1e-6 if args.use_half_precision else 1e-8
 optimizer = torch.optim.Adam(params, lr, eps=eps)
 
@@ -120,6 +120,7 @@ for epoch in range(epochs):
             print("loss: {} on epoch {}-{};{}".format(loss.data[0], epoch+1, i+1, sample))
         loss.backward()
         optimizer.step()
-    mstate = (encoder.state_dict(), decoder.state_dict())
-    sname = "output/states/{}_{}.pt".format(args.model_name, epoch+1)
-    torch.save(mstate, sname)
+    if args.save_model:
+        mstate = (encoder.state_dict(), decoder.state_dict())
+        sname = "output/states/{}_{}.pt".format(args.model_name, epoch+1)
+        torch.save(mstate, sname)
