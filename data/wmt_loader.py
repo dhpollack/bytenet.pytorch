@@ -38,7 +38,7 @@ class WMT(data.Dataset):
 
     def __init__(self, root, transform=None, target_transform=None,
                  split="europarl", use_str=False, prepad=True,
-                 a=1.2, b=0, download=False, keep_files=False):
+                 a=1.2, b=0, download=False, keep_files=False, infer=False):
         self.root = root
         self.keep_files = keep_files
         self.split = split
@@ -49,45 +49,49 @@ class WMT(data.Dataset):
         self.a = a - 1. # from paper a = 1.2
         self.b = b # from paper b = 0
 
-        data = {}
-        uniq = {}
-        for k, v in self.SPLITS.items():
-            split_dir = os.path.join(root, k)
-            with open(os.path.join(split_dir, v[0]), "r") as f:
-                raw = f.read()
-                for s, r in self.REPLACE:
-                    raw = raw.replace(s, r)
-                uniq_en = sorted(list(set(raw)))
-                uniq_en = OrderedDict([(k, i) for i, k in enumerate(uniq_en)])
-                uniq_en.update({self.UNK: len(uniq_en)})
-                english = raw.split("\n")
-            with open(os.path.join(split_dir, v[1]), "r") as f:
-                raw = f.read()
-                for s, r in self.REPLACE:
-                    raw = raw.replace(s, r)
-                uniq_de = sorted(list(set(raw)))
-                uniq_de = OrderedDict([(k, i) for i, k in enumerate(uniq_de)])
-                uniq_de.update({self.UNK: len(uniq_de)})
-                deutsch = raw.split("\n")
+        if infer:
+            pass
+        else:
 
-            assert len(english) == len(deutsch)
+            data = {}
+            uniq = {}
+            for k, v in self.SPLITS.items():
+                split_dir = os.path.join(root, k)
+                with open(os.path.join(split_dir, v[0]), "r") as f:
+                    raw = f.read()
+                    for s, r in self.REPLACE:
+                        raw = raw.replace(s, r)
+                    uniq_en = sorted(list(set(raw)))
+                    uniq_en = OrderedDict([(k, i) for i, k in enumerate(uniq_en)])
+                    uniq_en.update({self.UNK: len(uniq_en)})
+                    english = raw.split("\n")
+                with open(os.path.join(split_dir, v[1]), "r") as f:
+                    raw = f.read()
+                    for s, r in self.REPLACE:
+                        raw = raw.replace(s, r)
+                    uniq_de = sorted(list(set(raw)))
+                    uniq_de = OrderedDict([(k, i) for i, k in enumerate(uniq_de)])
+                    uniq_de.update({self.UNK: len(uniq_de)})
+                    deutsch = raw.split("\n")
 
-            if self.prepad:
-                data[k] = [self.pad_src_tgt(e, d, (uniq_en, uniq_de)) \
-                           for e, d in zip(english, deutsch) \
-                           if len(e) != 0 \
-                           and len(e) < 1000 and len(d) < 1000 \
-                           and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
-            else:
-                data[k] = [(e, d) for e, d in zip(english, deutsch) \
-                           if len(e) != 0 \
-                           and len(e) < 1000 and len(d) < 1000 \
-                           and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
-            uniq[k] = (uniq_en, uniq_de)
-            #print(len(english), len(english) - len(data[k]))
+                assert len(english) == len(deutsch)
 
-        self.labelers = uniq
-        self.data = data
+                if self.prepad:
+                    data[k] = [self.pad_src_tgt(e, d, (uniq_en, uniq_de)) \
+                               for e, d in zip(english, deutsch) \
+                               if len(e) != 0 \
+                               and len(e) < 1000 and len(d) < 1000 \
+                               and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
+                else:
+                    data[k] = [(e, d) for e, d in zip(english, deutsch) \
+                               if len(e) != 0 \
+                               and len(e) < 1000 and len(d) < 1000 \
+                               and (len(d) / len(e) <= a*.98 and len(d) / len(e) > 0.3)]
+                uniq[k] = (uniq_en, uniq_de)
+                #print(len(english), len(english) - len(data[k]))
+
+            self.labelers = uniq
+            self.data = data
 
     def __getitem__(self, index):
         src, tgt = self.data[self.split][index]

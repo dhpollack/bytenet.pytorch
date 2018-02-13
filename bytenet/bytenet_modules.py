@@ -122,8 +122,10 @@ class SimpleEmbEncoder(nn.Module):
     def __init__(self, ne, ed):
         super(SimpleEmbEncoder, self).__init__()
         self.emb = nn.Embedding(num_embeddings=ne, embedding_dim=ed)
+        self.ne = ne
     def forward(self, input):
-        x = self.emb(input)
+        x = torch.clamp(input, 0, self.ne)
+        x = self.emb(x)
         x = x.transpose(1, 2)
         return x
 
@@ -165,8 +167,6 @@ class BytenetDecoder(nn.Module):
         x = self.conv2(x)
         if self.use_logsm:
             x = self.logsm(x)
-        else:
-            x = x.transpose(1, 2).contiguous()
         return x
 
     def generate(self, input, n_samples, encoder=None):
@@ -175,13 +175,13 @@ class BytenetDecoder(nn.Module):
         for i in range(n_samples):
             out = self(x)
             if i+1 != n_samples:
-                gen = out.max(2)[1][:, -1].contiguous()
-                gen = gen.view(bs, 1)
-                gen_enc = encoder(gen)
+                gen_next = out.max(1)[1].index_select(1, out.new([out.size(2)-1]).long())
+                gen_enc = encoder(gen_next)
                 x = torch.cat((x, gen_enc), dim=2)
         # add last generated output to out
-        gen = out[:, -1, :].unsqueeze(1)
-        out = torch.cat((out, gen), dim=1)
+        gen_last = out.index_select(2, out.new([out.size(2)-1]).long())
+        out = torch.cat((out, gen_last), dim=2)
         # return only generated outputs
-        out = out[:,-n_samples:, :].contiguous()
+        tot_samples = out.size(2)
+        out = out.index_select(2, out.new(range(tot_samples-n_samples, tot_samples)).long())
         return out

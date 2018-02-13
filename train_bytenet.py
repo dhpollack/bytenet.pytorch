@@ -7,7 +7,6 @@ import torch.utils.data as data
 from data import select_dataset
 from data.loader_utils import PadCollate, decode_one_sample
 from bytenet.bytenet_modules import BytenetEncoder, BytenetDecoder
-#from bytenet.beam_opennmt import Beam
 import json
 
 parser = argparse.ArgumentParser(description='PyTorch Bytenet WMT Trainer')
@@ -53,10 +52,12 @@ config = json.load(open("config.json"))
 ds = select_dataset(args.model_name, config)
 tgt_labeler = ds.labelers[ds.split][1]
 tgt_rlabeler = list(tgt_labeler)
+#freq_list = torch.FloatTensor(ds.charfreqs[ds.split][1]).sqrt().view(1, -1, 1)
+#freq_list = Variable(freq_list)
 
 ignore_idx = -100
 pad_vals = (len(tgt_labeler)-1, ignore_idx)
-dl = data.DataLoader(ds, batch_size=args.batch_size, shuffle=False,
+dl = data.DataLoader(ds, batch_size=args.batch_size, shuffle=True,
                      drop_last=True, num_workers=args.num_workers,
                      collate_fn=PadCollate(pad_vals=pad_vals))
 print("Number of Batches: {}".format(len(dl)))
@@ -78,12 +79,8 @@ epochs = args.epochs
 #n_best = 3
 
 encoder = BytenetEncoder(input_features//2, max_r, k_enc, num_sets)
-decoder = BytenetDecoder(input_features//2, max_r, k_dec, num_sets, num_classes)
+decoder = BytenetDecoder(input_features//2, max_r, k_dec, num_sets, num_classes, use_logsm=False)
 #beam = Beam(12, pad, eos, n_best)
-
-if use_cuda:
-    encoder = nn.DataParallel(encoder).cuda() if ngpu > 1 else encoder.cuda()
-    decoder = nn.DataParallel(decoder).cuda() if ngpu > 1 else decoder.cuda()
 
 if args.use_half_precision:
     encoder, decoder = encoder.half(), decoder.half()
@@ -93,10 +90,14 @@ if args.load_model is not None:
     encoder.load_state_dict(enstate)
     decoder.load_state_dict(destate)
 
+if use_cuda:
+    encoder = nn.DataParallel(encoder).cuda() if ngpu > 1 else encoder.cuda()
+    decoder = nn.DataParallel(decoder).cuda() if ngpu > 1 else decoder.cuda()
+
 params = [{"params": encoder.parameters()}, {"params": decoder.parameters()}]
 #print(decoder)
 
-criterion = nn.NLLLoss(ignore_index=ignore_idx, size_average=False)
+criterion = nn.CrossEntropyLoss(ignore_index=ignore_idx, size_average=True)
 eps = 1e-6 if args.use_half_precision else 1e-8
 optimizer = torch.optim.Adam(params, lr, eps=eps)
 
@@ -114,13 +115,16 @@ for epoch in range(epochs):
         mb, tgts = Variable(mb), Variable(tgts)
         mb = encoder(mb)
         out = decoder(mb)
-        loss = criterion(out.unsqueeze(2), tgts.unsqueeze(1)) # ach, alles für Bilder
+        loss = criterion(out, tgts) # ach, alles für Bilder. fixed in master for 0.3.0 use (out.unsqueeze(2), tgts.unsqueeze(1))
         if i % args.log_interval == 0:
             sample = decode_one_sample(out, tgt_rlabeler)
             print("loss: {} on epoch {}-{};{}".format(loss.data[0], epoch+1, i+1, sample))
         loss.backward()
         optimizer.step()
     if args.save_model:
-        mstate = (encoder.state_dict(), decoder.state_dict())
+        if ngpu > 1:
+            mstate = (encoder.module.state_dict(), decoder.module.state_dict())
+        else:
+            mstate = (encoder.state_dict(), decoder.state_dict())
         sname = "output/states/{}_{}.pt".format(args.model_name, epoch+1)
         torch.save(mstate, sname)
