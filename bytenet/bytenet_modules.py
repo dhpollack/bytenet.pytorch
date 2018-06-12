@@ -8,6 +8,7 @@ def _same_pad(k=1, dil=1):
     # assumes stride length of 1
     # p = math.ceil((l - 1) * s - l + dil*(k - 1) + 1)
     p = math.ceil(dil*(k - 1))
+    #print("padding:", p)
     return p
 
 class ResBlock(nn.Module):
@@ -39,7 +40,11 @@ class ResBlock(nn.Module):
         if casual:
             padding = (_same_pad(k,r), 0)
         else:
-            padding = (_same_pad(k,r) // 2, _same_pad(k,r) // 2)
+            p = _same_pad(k,r)
+            if p % 2 == 1:
+                padding = [p // 2 + 1, p // 2]
+            else:
+                padding = (p // 2, p // 2)
         self.pad = nn.ConstantPad1d(padding, 0.)
         #self.pad = nn.ReflectionPad1d(padding) # this might be better for audio
         self.maskedconv1xk = nn.Conv1d(d, d, kernel_size=k, dilation=r, bias=ub)

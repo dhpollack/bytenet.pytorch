@@ -118,7 +118,7 @@ for epoch in range(epochs):
         loss = criterion(out, tgts) # ach, alles für Bilder. fixed in master for 0.3.0 use (out.unsqueeze(2), tgts.unsqueeze(1))
         if i % args.log_interval == 0:
             sample = decode_one_sample(out, tgt_rlabeler)
-            print("loss: {} on epoch {}-{};{}".format(loss.data[0], epoch+1, i+1, sample))
+            print("loss: {} on epoch {}-{};{}".format(loss.item(), epoch+1, i+1, sample))
         loss.backward()
         optimizer.step()
     if args.save_model:
